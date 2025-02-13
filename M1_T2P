@@ -1,0 +1,29 @@
+const int irSensorPin = 2;  // IR sensor connected to pin 2
+const int builtIn_led = 13; // Built-in LED for Arduino Uno
+
+volatile bool obstacleDetected = false; // Flag to store obstacle status
+
+void IR_interrupt() {
+    obstacleDetected = true; // Set flag when an obstacle is detected
+}
+
+void setup() {
+    pinMode(irSensorPin, INPUT);
+    pinMode(builtIn_led, OUTPUT);
+    Serial.begin(9600);
+
+    attachInterrupt(digitalPinToInterrupt(irSensorPin), IR_interrupt, RISING); 
+}
+
+void loop() {
+    if (obstacleDetected) {
+        digitalWrite(builtIn_led, HIGH);
+        Serial.println("Obstacle detected");
+        delay(1000);  // Wait for 1 second
+        obstacleDetected = false; // Reset flag
+    } else {
+        digitalWrite(builtIn_led, LOW);
+        Serial.println("No obstacle detected");
+    }
+    delay(500);  // Small delay to make the Serial Monitor readable
+}
