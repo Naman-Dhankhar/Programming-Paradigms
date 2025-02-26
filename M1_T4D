@@ -1,0 +1,105 @@
+#include <Wire.h>
+#include <BH1750.h>
+#include <PinChangeInterrupt.h>
+
+// Pin Definitions
+#define PIR_PIN 3
+#define TRIG_PIN 2
+#define ECHO_PIN 4
+#define LED_WHITE 8
+#define LED_BLUE 9
+#define LED_GENERAL 10
+
+// Sensor Setup
+BH1750 lightMeter;
+
+// Volatile Variables for Interrupts
+volatile bool motionDetected = false;
+volatile bool obstacleDetected = false;
+
+// Light Sensor Threshold
+#define LIGHT_THRESHOLD 1500  // Lux level for turning on General LED
+#define DISTANCE_THRESHOLD 10 // cm threshold for obstacle detection
+
+// Timer Variables
+volatile bool readLightSensor = false;
+
+// Timer Interrupt Routine (Fires every 2 seconds)
+ISR(TIMER1_COMPA_vect) {
+  readLightSensor = true;
+}
+
+// PIR Interrupt Routine
+void PIR_ISR() {
+  motionDetected = digitalRead(PIR_PIN);
+  delay(50); // Debounce PIR sensor
+}
+
+void setup() {
+  Serial.begin(9600);
+
+  // PIR Sensor Setup
+  pinMode(PIR_PIN, INPUT);
+  attachPCINT(digitalPinToPCINT(PIR_PIN), PIR_ISR, CHANGE);
+
+  // Ultrasonic Sensor Setup
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+
+  // LED Setup
+  pinMode(LED_WHITE, OUTPUT);
+  pinMode(LED_BLUE, OUTPUT);
+  pinMode(LED_GENERAL, OUTPUT);
+
+  // Initialize Light Sensor (SDA - A4, SCL - A3)
+  Wire.begin();
+  lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE);
+  delay(200); // Allow time for the sensor to stabilize
+
+  // Configure Timer1 (2-second interrupt)
+  cli();
+  TCCR1A = 0;
+  TCCR1B = 0;
+  TCNT1 = 0;
+  OCR1A = 31250;  // 2 seconds (16MHz clock, 1024 prescaler)
+  TCCR1B |= (1 << WGM12);
+  TCCR1B |= (1 << CS12) | (1 << CS10); // Prescaler 1024
+  TIMSK1 |= (1 << OCIE1A);
+  sei();
+
+  Serial.println("System Initialized");
+}
+
+void loop() {
+  // Handle PIR Motion Detection
+  digitalWrite(LED_WHITE, motionDetected);
+  if (motionDetected) {
+    Serial.println("Motion Detected!");
+  }
+
+  // Handle Ultrasonic Sensor Obstacle Detection
+  digitalWrite(TRIG_PIN, LOW);
+  delayMicroseconds(2);
+  digitalWrite(TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG_PIN, LOW);
+
+  long duration = pulseIn(ECHO_PIN, HIGH, 30000); // Timeout to prevent hang
+  float distance = duration * 0.034 / 2; // Convert to cm
+
+  obstacleDetected = (distance > 0 && distance < DISTANCE_THRESHOLD);
+  digitalWrite(LED_BLUE, obstacleDetected);
+  if (obstacleDetected) {
+    Serial.println("Obstacle Detected!");
+  }
+
+  // Read Light Sensor
+  float lux = lightMeter.readLightLevel();
+  Serial.print("Light Intensity: ");
+  Serial.print(lux);
+  Serial.println(" lx");
+
+  digitalWrite(LED_GENERAL, lux > LIGHT_THRESHOLD); // LED ON if dark
+
+  delay(500); // Small delay to allow stable readings
+}
