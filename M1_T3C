@@ -1,14 +1,23 @@
-#define IR_SENSOR_PIN 2  // IR sensor connected to D2
-#define SENSOR_PIN A0    // Analog sensor at A0
-#define LED_PIN 9        // External LED connected to D9
-#define BUILT_IN_LED 13  // Built-in LED on Arduino
+#define IR_SENSOR_PIN 2  // IR Sensor Connected to D2 (Interrupt pin)
+#define SENSOR_PIN A0  // Analog Sensor (e.g. force sensor, poteniometer) at A0
+#define LED_PIN 9  // External LED at D9
+#define BUILT_IN_LED 13 // Built-in LED on Arduino
 
 volatile bool objectDetected = false; // Flag for object detection
-int sensorValue = 0;
-int outputValue = 0;
 
 void IR_ISR() {
-    objectDetected = digitalRead(IR_SENSOR_PIN) == LOW; // Update flag when IR sensor changes state
+    objectDetected = digitalRead(IR_SENSOR_PIN) == LOW; // Update Flag when IR sensor changes state
+    digitalWrite(BUILT_IN_LED, objectDetected ? HIGH : LOW);
+
+    if (objectDetected) {
+        int sensorValue = analogRead(SENSOR_PIN); // Read analog sensor
+        int outputValue = map(sensorValue, 0, 1023, 0, 255); // Map sensor to PWM range
+        analogWrite(LED_PIN, outputValue); // Adjust external LED brightness
+        Serial.println("Object Detected! LEDs ON");
+    } else {
+        analogWrite(LED_PIN, 0); // Turn OFF external LED
+        Serial.println("No Object Detected! LEDs OFF");
+    }
 }
 
 void setup() {
@@ -18,26 +27,9 @@ void setup() {
     pinMode(BUILT_IN_LED, OUTPUT);
     Serial.begin(9600);
 
-    attachInterrupt(digitalPinToInterrupt(IR_SENSOR_PIN), IR_ISR, CHANGE); 
+    attachInterrupt(digitalPinToInterrupt(IR_SENSOR_PIN), IR_ISR, CHANGE);
 }
 
 void loop() {
-    sensorValue = analogRead(SENSOR_PIN);  // Read analog sensor value
-    Serial.print("IR State: ");
-    Serial.print(objectDetected);
-    Serial.print(" | Sensor Value: ");
-    Serial.println(sensorValue);
-
-    if (objectDetected) {  // If object detected
-        outputValue = map(sensorValue, 0, 1023, 0, 255);  
-        analogWrite(LED_PIN, outputValue);  // Adjust external LED brightness
-        digitalWrite(BUILT_IN_LED, HIGH);   // Turn ON built-in LED
-        Serial.println("Object Detected! LEDs ON");
-    } else {
-        analogWrite(LED_PIN, 0);  // Turn OFF external LED
-        digitalWrite(BUILT_IN_LED, LOW);   // Turn OFF built-in LED
-        Serial.println("No Object Detected! LEDs OFF");
-    }
-
-    delay(100);  // Short delay for stability
+    // Empty loop - Everything is handled in ISR
 }
